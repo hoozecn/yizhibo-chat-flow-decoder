@@ -213,12 +213,31 @@ def ParseData(data, start, end, messages, depth = 0):
 
 def ParseProto(fileName):
     data = open(fileName, "rb").read()
+    offset = 0
     size = len(data)
 
-    messages = {}
-    ParseData(data, 0, size, messages)
+    flow = []
 
-    return messages
+    while len(data) > 8:
+        messages = {}
+        fixedHead = struct.unpack('!i', data[:4])[0]  # read 0x65
+        assert 0x65 == fixedHead, "%s 0x%x != 0x65" % (json.dumps(flow, sort_keys=True), fixedHead)
+        data = data[4:]
+        command = struct.unpack('!i', data[:4])[0]  # read command
+        data = data[4:]
+        fixedData = data[:4]
+        data = data[4:]
+        length = struct.unpack('!i', data[:4])[0]
+        data = data[4:]
+        body = data[:length]
+        data = data[length:]
+        ParseData(body, 0, len(body), messages)
+        flow.append({
+            "_command": command,
+            "body": messages
+        })
+
+    return flow
 
 def GenValueList(value):
     valueList = []
@@ -424,47 +443,8 @@ def SaveModification(messages, fileName):
     f = open(fileName, 'wb')
     f.write(bytearray(output))
     f.close()
-    
+
 
 if __name__ == "__main__":
-    if sys.argv[1] == "dec":
-        messages = ParseProto('tmp.pb')
-
-        f = open('tmp.json', 'wb')
-        json.dump(messages, f, indent=4, sort_keys=True, ensure_ascii=False, encoding='utf-8')
-        f.close()
-
-        #for str in strings:
-        #    try:
-        #        print str,
-        #    except:
-        #        pass
-        f.close()
-
-    elif sys.argv[1] == "enc":
-
-        f = codecs.open('tmp.json', 'r', 'utf-8')
-        messages = json.load(f, encoding='utf-8')
-        f.close()
-
-        SaveModification(messages, "tmp.pb")
-
-    else:
-        messages = ParseProto(sys.argv[1])
-
-        print json.dumps(messages, indent=4, sort_keys=True, ensure_ascii=False, encoding='utf-8')
-
-        # modify any field you like
-        #messages['01:00:embedded message']['01:00:string'] = "あなた"
-
-        # dump and reload the 'messages' json objects to ensure it being utf-8 encoded
-        f = open('tmp.json', 'wb')
-        json.dump(messages, f, indent=4, sort_keys=True, ensure_ascii=False, encoding='utf-8')
-        f.close()
-        f = codecs.open('tmp.json', 'r', 'utf-8')
-        messages = json.load(f, encoding='utf-8')
-        f.close()
-
-        # the modification is saved in file named "modified"
-        SaveModification(messages, "modified")
-
+    messages = ParseProto(sys.argv[1])
+    print json.dumps(messages, indent=4, sort_keys=True, ensure_ascii=False, encoding='utf-8')
